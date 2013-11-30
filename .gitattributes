@@ -1,0 +1,6 @@
+* text=auto !eol
+/shell.c -text
+/sqlite3.1 -text
+/sqlite3.c -text
+/sqlite3.h -text
+/sqlite3ext.h -text
