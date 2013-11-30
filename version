@@ -1,0 +1,10 @@
+# $Id: version,v 1.1.1.4 2008-04-18 18:31:31 laffer1 Exp $
+#
+# This file must follow /bin/sh rules.  It is imported directly via
+# configure.
+#
+MAJORVER=9
+MINORVER=4
+PATCHVER=2
+RELEASETYPE=
+RELEASEVER=
