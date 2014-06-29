@@ -336,7 +336,6 @@ src/strlcat.c -text
 src/strlcpy.c -text
 src/tar.h -text
 src/vasprintf.c -text
-/svn-commit.tmp -text
 tests/Makefile.am -text
 tests/Makefile.in -text
 tests/README -text
