@@ -25,8 +25,8 @@
 #include "test.h"
 __FBSDID("$FreeBSD: head/lib/libarchive/test/test_write_format_tar.c 189308 2009-03-03 17:02:51Z kientzle $");
 
-char buff[1000000];
-char buff2[64];
+static char buff[1000000];
+static char buff2[64];
 
 DEFINE_TEST(test_write_format_tar)
 {
@@ -43,7 +43,7 @@ DEFINE_TEST(test_write_format_tar)
 		assertEqualIntA(a, ARCHIVE_OK,
 		    archive_write_set_format_ustar(a));
 		assertEqualIntA(a, ARCHIVE_OK,
-		    archive_write_set_compression_none(a));
+		    archive_write_add_filter_none(a));
 		assertEqualIntA(a, ARCHIVE_OK,
 		    archive_write_set_bytes_per_block(a, (int)blocksize));
 		assertEqualIntA(a, ARCHIVE_OK,

@@ -163,6 +163,7 @@ archive_read_support_filter_compress(struct archive *_a)
 		return (ARCHIVE_FATAL);
 
 	bidder->data = NULL;
+	bidder->name = "compress (.Z)";
 	bidder->bid = compress_bidder_bid;
 	bidder->init = compress_bidder_init;
 	bidder->options = NULL;
@@ -184,19 +185,22 @@ compress_bidder_bid(struct archive_read_filter_bidder *self,
 
 	(void)self; /* UNUSED */
 
-	buffer = __archive_read_filter_ahead(filter, 2, &avail);
+	/* Shortest valid compress file is 3 bytes. */
+	buffer = __archive_read_filter_ahead(filter, 3, &avail);
 
 	if (buffer == NULL)
 		return (0);
 
 	bits_checked = 0;
+	/* First two bytes are the magic value */
 	if (buffer[0] != 0x1F || buffer[1] != 0x9D)
 		return (0);
-	bits_checked += 16;
-
-	/*
-	 * TODO: Verify more.
-	 */
+	/* Third byte holds compression parameters. */
+	if (buffer[2] & 0x20) /* Reserved bit, must be zero. */
+		return (0);
+	if (buffer[2] & 0x40) /* Reserved bit, must be zero. */
+		return (0);
+	bits_checked += 18;
 
 	return (bits_checked);
 }
@@ -212,7 +216,7 @@ compress_bidder_init(struct archive_read_filter *self)
 	void *out_block;
 	int code;
 
-	self->code = ARCHIVE_COMPRESSION_COMPRESS;
+	self->code = ARCHIVE_FILTER_COMPRESS;
 	self->name = "compress (.Z)";
 
 	state = (struct private_data *)calloc(sizeof(*state), 1);
@@ -238,7 +242,13 @@ compress_bidder_init(struct archive_read_filter *self)
 	(void)getbits(self, 8); /* Skip first signature byte. */
 	(void)getbits(self, 8); /* Skip second signature byte. */
 
+	/* Get compression parameters. */
 	code = getbits(self, 8);
+	if ((code & 0x1f) > 16) {
+		archive_set_error(&self->archive->archive, -1,
+		    "Invalid compressed data");
+		return (ARCHIVE_FATAL);
+	}
 	state->maxcode_bits = code & 0x1f;
 	state->maxcode = (1 << state->maxcode_bits);
 	state->use_reset_code = code & 0x80;
@@ -367,7 +377,8 @@ next_code(struct archive_read_filter *self)
 		return (next_code(self));
 	}
 
-	if (code > state->free_ent) {
+	if (code > state->free_ent
+	    || (code == state->free_ent && state->oldcode < 0)) {
 		/* An invalid code is a fatal error. */
 		archive_set_error(&(self->archive->archive), -1,
 		    "Invalid compressed data");
