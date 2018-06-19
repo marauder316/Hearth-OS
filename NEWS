@@ -1,14 +1,98 @@
-Jan 10, 2012: Issue 223: Skip atime tests if atime not supported
-Jan 09, 2012: Issue 222: Errors saving sparse files to pax archives
-Jan 09, 2012: Issue 221: allow archive_*_free(NULL)
-Dec 31, 2011: Issue 212: configure script on Solaris
-Dec 30, 2011: Issue 218: empty contents extracting Zip files with bsdcpio
-Dec 30, 2011: Issue 217: fix compile warning
-Dec 30, 2011: Issue 216: truncated filenames in listings
-Dec 28, 2011: Issue 210: memory leak on Windows
-Dec 28, 2011: Issue 206: fix hardlink tests on Windows 2000
-Dec 27, 2011: Issue 208: Don't hang when using external compression
-   program on Windows
+Jul 09, 2017: libarchive 3.3.2 released
+
+Mar 16, 2017: NFSv4 ACL support for Linux (librichacl)
+
+Feb 26, 2017: libarchive 3.3.1 released
+    Security & Feature release
+
+Feb 19, 2017: libarchive 3.3.0 released
+    Security & Feature release
+
+Jan 29, 2017: Limited NFSv4 ACL support for Mac OS (Darwin)
+
+Jan 10, 2017: POSIX.1e and NFSv4 ACL support for Solaris and derivates
+
+Dec 27, 2016: NFSv4 ACL read and write support for pax
+    Deprecated functions: archive_entry_acl_text(), archive_entry_acl_text_w()
+
+Nov, 2016: libarchive is now being tested by the OSS-Fuzz project
+
+Oct 26, 2016: Remove liblzmadec support
+
+Oct 23, 2016: libarchive 3.2.2 released
+    Security release
+
+Jun 20, 2016: libarchive 3.2.1 released
+    This fixes a handful of security and other critical issues with 3.2.0
+
+May 01, 2016: libarchive 3.2.0 released
+
+Apr 09, 2016: libarchive 3.1.901a released
+    Another test release in preparation for 3.2.0
+
+Feb 13, 2016: libarchive 3.1.900a released
+    This is a test release in preparation for 3.2.0
+
+Oct 21, 2015: Preliminary port to OSF
+
+Apr 11, 2015: libarchive's issue tracker is now hosted at GitHub.
+    https://github.com/libarchive/libarchive/issues
+
+Early 2015:  Many fixes to crash and overflow bugs thanks to Hanno Boeck
+
+Oct 13, 2014: Zip encryption and decryption support
+
+Aug 13, 2014: Add support for lz4 compression.
+
+Jun 10, 2014: Add warc format support
+
+May  3, 2014: Add experimental Zip streaming extension
+
+Apr  6, 2014: Add bsdcat command-line tool
+
+Jan 12, 2014: Add Zip64 support
+
+Dec  1, 2013: Rewrite Zip write logic
+
+Jul  1, 2013: Add ability to detect encrypted entries for many formats
+     (This does not add the ability to *decrypt* those entries, however)
+
+Feb 23, 2013: "raw" write support added
+
+Feb 09, 2013: libarchive 3.1.2 released
+
+Jan 28, 2013: libarchive's new website moved to http://www.libarchive.org.
+
+Jan 13, 2013: libarchive 3.1.1 released
+
+Jan 13, 2013: libarchive 3.1.0 released
+
+Dec 07, 2012: Implement functions to manually set the format and filters used.
+    
+Nov 11, 2012: Add support for __MACOSX directory in Zip archives, which resource
+    forks are stored in.
+
+Oct 20, 2012: Add support for writing v7 tar format.
+
+Oct 09, 2012: Add support for grzip compression.
+
+Oct 07, 2012: Introduce b64encode filter.    
+Oct 07, 2012: Introduce uuencode filter.
+
+Oct 06, 2012: Add support for lzop.
+    
+Sep 27, 2012: Implement function used to seek within data blocks.
+    (Currently only supported for uncompressed RAR archives).
+    
+Apr 22, 2012: Add basic archive read and write filter support for lrzip.
+
+Mar 27, 2012: libarchive 3.0.4 released
+
+Feb 05, 2012: libarchive development now hosted at GitHub.
+    http://libarchive.github.com/
+Feb 05, 2012: libarchive's issue tracker remains at Google Code.
+    http://code.google.com/p/libarchive/issues/list
+Feb 05, 2012: libarchive's mailing lists remain at Google Groups.
 
 Dec 24, 2011: libarchive 3.0.2 released
 Dec 23, 2011: Various fixes merged from FreeBSD
@@ -213,7 +297,7 @@ May 04, 2008: libarchive 2.5.3b released
 	* libarchive: Mark which entry strings are set; be accurate about
 	  distinguishing empty strings ("") from unset ones (NULL)
 	* tar: Don't crash reading entries with empty filenames
-	* libarchive_test, bsdtar_test, bsdcpio_test:  Better detaults:
+	* libarchive_test, bsdtar_test, bsdcpio_test:  Better defaults:
 	  run all tests, delete temp dirs, summarize repeated failures
 	* -no-undefined to libtool for Cygwin
 	* libarchive_test: Skip large file tests on systems with 32-bit off_t

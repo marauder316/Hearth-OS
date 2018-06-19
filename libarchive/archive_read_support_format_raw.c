@@ -77,7 +77,10 @@ archive_read_support_format_raw(struct archive *_a)
 	    archive_read_format_raw_read_header,
 	    archive_read_format_raw_read_data,
 	    archive_read_format_raw_read_data_skip,
-	    archive_read_format_raw_cleanup);
+	    NULL,
+	    archive_read_format_raw_cleanup,
+	    NULL,
+	    NULL);
 	if (r != ARCHIVE_OK)
 		free(info);
 	return (r);
@@ -157,7 +160,7 @@ archive_read_format_raw_read_data(struct archive_read *a,
 		/* Record and return an error. */
 		*size = 0;
 		*offset = info->offset;
-		return (avail);
+		return ((int)avail);
 	}
 }
 

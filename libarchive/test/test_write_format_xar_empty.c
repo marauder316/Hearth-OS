@@ -45,7 +45,7 @@ DEFINE_TEST(test_write_format_xar_empty)
 		assertEqualIntA(a, ARCHIVE_OK, archive_write_free(a));
 		return;
 	}
-	assertEqualIntA(a, ARCHIVE_OK, archive_write_set_compression_none(a));
+	assertEqualIntA(a, ARCHIVE_OK, archive_write_add_filter_none(a));
 	assertEqualIntA(a, ARCHIVE_OK, archive_write_set_bytes_per_block(a, 1));
 	assertEqualIntA(a, ARCHIVE_OK, archive_write_set_bytes_in_last_block(a, 1));
 	assertEqualIntA(a, ARCHIVE_OK,
@@ -115,6 +115,6 @@ DEFINE_TEST(test_write_format_xar_empty)
 	assertEqualIntA(a, ARCHIVE_OK, archive_write_close(a));
 	assertEqualInt(ARCHIVE_OK, archive_write_free(a));
 
-	/* Verify the correct format for an empy Xar archive. */
+	/* Verify the correct format for an empty Xar archive. */
 	assertEqualInt(used, 0);
 }

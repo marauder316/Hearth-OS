@@ -62,7 +62,7 @@ errmsg(const char *m)
 	}
 }
 
-static void
+static __LA_DEAD void
 diediedie(void)
 {
 #if defined(_WIN32) && !defined(__CYGWIN__) && defined(_DEBUG)
@@ -94,6 +94,7 @@ archive_handle_type_name(unsigned m)
 	case ARCHIVE_READ_MAGIC:	return ("archive_read");
 	case ARCHIVE_WRITE_DISK_MAGIC:	return ("archive_write_disk");
 	case ARCHIVE_READ_DISK_MAGIC:	return ("archive_read_disk");
+	case ARCHIVE_MATCH_MAGIC:	return ("archive_match");
 	default:			return NULL;
 	}
 }

@@ -27,7 +27,7 @@
 __FBSDID("$FreeBSD$");
 
 /*
-ecute the following to rebuild the data for this program:
+execute the following to rebuild the data for this program:
    tail -n +33 test_read_format_cpio_afio.c | /bin/sh
 
 # How to make a sample data.
@@ -84,7 +84,8 @@ DEFINE_TEST(test_read_format_cpio_afio)
 
 	/* The default block size of afio is 5120. we simulate it */
 	size = (sizeof(archive) + 5120 -1 / 5120) * 5120;
-	if (!assert((p = malloc(size)) != NULL))
+	assert((p = malloc(size)) != NULL);
+	if (p == NULL)
 		return;
 	memset(p, 0, size);
 	memcpy(p, archive, sizeof(archive));
@@ -97,7 +98,9 @@ DEFINE_TEST(test_read_format_cpio_afio)
 	 */
 	assertEqualIntA(a, ARCHIVE_OK, archive_read_next_header(a, &ae));
 	assertEqualInt(17, archive_entry_size(ae));
-	assertA(archive_compression(a) == ARCHIVE_COMPRESSION_NONE);
+	assertEqualInt(archive_entry_is_encrypted(ae), 0);
+	assertEqualIntA(a, archive_read_has_encrypted_entries(a), ARCHIVE_READ_FORMAT_ENCRYPTION_UNSUPPORTED);
+	assertA(archive_filter_code(a, 0) == ARCHIVE_FILTER_NONE);
 	assertA(archive_format(a) == ARCHIVE_FORMAT_CPIO_POSIX);
 	/*
 	 * Second entry is afio large ASCII format.
@@ -106,7 +109,9 @@ DEFINE_TEST(test_read_format_cpio_afio)
 	assertEqualInt(17, archive_entry_size(ae));
 	if (uid_size() > 4)
 		assertEqualInt(65536, archive_entry_uid(ae));
-	assertA(archive_compression(a) == ARCHIVE_COMPRESSION_NONE);
+	assertEqualInt(archive_entry_is_encrypted(ae), 0);
+	assertEqualIntA(a, archive_read_has_encrypted_entries(a), ARCHIVE_READ_FORMAT_ENCRYPTION_UNSUPPORTED);
+	assertA(archive_filter_code(a, 0) == ARCHIVE_FILTER_NONE);
 	assertA(archive_format(a) == ARCHIVE_FORMAT_CPIO_AFIO_LARGE);
 	assertEqualInt(ARCHIVE_OK, archive_read_close(a));
 	assertEqualInt(ARCHIVE_OK, archive_read_free(a));

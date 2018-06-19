@@ -34,11 +34,15 @@ __FBSDID("$FreeBSD$");
 	"abcdefghijklmnopqrstuvwxyz/"	\
 	"abcdefghijklmnopqrstuvwxyz/"
 
+static void test_compat_mac_1(void);
+static void test_compat_mac_2(void);
+
 /*
  * Apple shipped an extended version of GNU tar with Mac OS X 10.5
  * and earlier.
  */
-void test_compat_mac_1()
+static void
+test_compat_mac_1(void)
 {
 	char name[] = "test_compat_mac-1.tar.Z";
 	struct archive_entry *ae;
@@ -49,6 +53,7 @@ void test_compat_mac_1()
 	assert((a = archive_read_new()) != NULL);
 	assertEqualIntA(a, ARCHIVE_OK, archive_read_support_filter_all(a));
 	assertEqualIntA(a, ARCHIVE_OK, archive_read_support_format_all(a));
+	assertEqualIntA(a, ARCHIVE_OK, archive_read_set_options(a, "mac-ext"));
 	extract_reference_file(name);
 	assertEqualIntA(a, ARCHIVE_OK, archive_read_open_filename(a, name, 10240));
 
@@ -123,7 +128,7 @@ void test_compat_mac_1()
 	assertEqualIntA(a, ARCHIVE_EOF, archive_read_next_header(a, &ae));
 
 	/* Verify that the format detection worked. */
-	assertEqualInt(archive_compression(a), ARCHIVE_COMPRESSION_COMPRESS);
+	assertEqualInt(archive_filter_code(a, 0), ARCHIVE_FILTER_COMPRESS);
 	assertEqualInt(archive_format(a), ARCHIVE_FORMAT_TAR_GNUTAR);
 
 	assertEqualInt(ARCHIVE_OK, archive_read_close(a));
@@ -133,7 +138,8 @@ void test_compat_mac_1()
 /*
  * Apple shipped a customized version of bsdtar starting with MacOS 10.6.
  */
-void test_compat_mac_2()
+static void
+test_compat_mac_2(void)
 {
 	char name[] = "test_compat_mac-2.tar.Z";
 	struct archive_entry *ae;
@@ -144,6 +150,7 @@ void test_compat_mac_2()
 	assert((a = archive_read_new()) != NULL);
 	assertEqualIntA(a, ARCHIVE_OK, archive_read_support_filter_all(a));
 	assertEqualIntA(a, ARCHIVE_OK, archive_read_support_format_all(a));
+	assertEqualIntA(a, ARCHIVE_OK, archive_read_set_options(a, "mac-ext"));
 	extract_reference_file(name);
 	assertEqualIntA(a, ARCHIVE_OK, archive_read_open_filename(a, name, 10240));
 
@@ -192,7 +199,7 @@ void test_compat_mac_2()
 	assertEqualIntA(a, ARCHIVE_EOF, archive_read_next_header(a, &ae));
 
 	/* Verify that the format detection worked. */
-	assertEqualInt(archive_compression(a), ARCHIVE_COMPRESSION_COMPRESS);
+	assertEqualInt(archive_filter_code(a, 0), ARCHIVE_FILTER_COMPRESS);
 	assertEqualInt(archive_format(a), ARCHIVE_FORMAT_TAR_USTAR);
 
 	assertEqualInt(ARCHIVE_OK, archive_read_close(a));

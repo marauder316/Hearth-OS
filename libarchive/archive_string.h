@@ -81,6 +81,10 @@ archive_strappend_char(struct archive_string *, char);
 struct archive_wstring *
 archive_wstrappend_wchar(struct archive_wstring *, wchar_t);
 
+/* Append a raw array to an archive_string, resizing as necessary */
+struct archive_string *
+archive_array_append(struct archive_string *, const char *, size_t);
+
 /* Convert a Unicode string to current locale and append the result. */
 /* Returns -1 if conversion fails. */
 int
@@ -110,18 +114,20 @@ archive_string_conversion_charset_name(struct archive_string_conv *);
 void
 archive_string_conversion_set_opt(struct archive_string_conv *, int);
 #define SCONV_SET_OPT_UTF8_LIBARCHIVE2X	1
+#define SCONV_SET_OPT_NORMALIZATION_C	2
+#define SCONV_SET_OPT_NORMALIZATION_D	4
 
 
 /* Copy one archive_string to another in locale conversion.
- * Return -1 if conversion failes. */
+ * Return -1 if conversion fails. */
 int
-archive_strncpy_in_locale(struct archive_string *, const void *, size_t,
+archive_strncpy_l(struct archive_string *, const void *, size_t,
     struct archive_string_conv *);
 
 /* Copy one archive_string to another in locale conversion.
- * Return -1 if conversion failes. */
+ * Return -1 if conversion fails. */
 int
-archive_strncat_in_locale(struct archive_string *, const void *, size_t,
+archive_strncat_l(struct archive_string *, const void *, size_t,
     struct archive_string_conv *);
 
 
@@ -162,8 +168,8 @@ archive_wstrcat(struct archive_wstring *, const wchar_t *);
 	archive_strncpy((as), (p), ((p) == NULL ? 0 : strlen(p)))
 #define	archive_wstrcpy(as,p) \
 	archive_wstrncpy((as), (p), ((p) == NULL ? 0 : wcslen(p)))
-#define	archive_strcpy_in_locale(as,p,lo) \
-	archive_strncpy_in_locale((as), (p), ((p) == NULL ? 0 : strlen(p)), (lo))
+#define	archive_strcpy_l(as,p,lo) \
+	archive_strncpy_l((as), (p), ((p) == NULL ? 0 : strlen(p)), (lo))
 
 /* Copy a C string to an archive_string with limit, resizing as necessary. */
 #define	archive_strncpy(as,p,l) \

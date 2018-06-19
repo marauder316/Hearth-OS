@@ -23,7 +23,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd February 22, 2010
+.Dd February 2, 2012
 .Dt ARCHIVE_ENTRY_PERMS 3
 .Os
 .Sh NAME
@@ -34,8 +34,8 @@
 .Nm archive_entry_perm ,
 .Nm archive_entry_set_perm ,
 .Nm archive_entry_strmode ,
-.Nm archive_entry_uname
-.Nm archive_entry_uname_w
+.Nm archive_entry_uname ,
+.Nm archive_entry_uname_w ,
 .Nm archive_entry_set_uname ,
 .Nm archive_entry_copy_uname ,
 .Nm archive_entry_copy_uname_w ,
@@ -52,6 +52,8 @@
 .Nm archive_entry_copy_fflags_text ,
 .Nm archive_entry_copy_fflags_text_w
 .Nd functions for manipulating ownership and permissions in archive entry descriptions
+.Sh LIBRARY
+Streaming Archive Library (libarchive, -larchive)
 .Sh SYNOPSIS
 .In archive_entry.h
 .Ft gid_t
@@ -192,11 +194,11 @@ every name that is recognized.
 .Xr strtofflags 3 ,
 which stops parsing at the first unrecognized name.)
 .Sh SEE ALSO
-.Xr archive 3 ,
 .Xr archive_entry 3 ,
 .Xr archive_entry_acl 3 ,
 .Xr archive_read_disk 3 ,
 .Xr archive_write_disk 3
+.Xr libarchive 3 ,
 .Sh BUGS
 The platform types
 .Vt uid_t

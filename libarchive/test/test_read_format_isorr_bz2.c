@@ -26,7 +26,7 @@
 __FBSDID("$FreeBSD: head/lib/libarchive/test/test_read_format_isorr_bz2.c 201247 2009-12-30 05:59:21Z kientzle $");
 
 /*
-PLEASE use old cdrtools; mkisofs verion is 2.01.
+PLEASE use old cdrtools; mkisofs version is 2.01.
 This version mkisofs made wrong "SL" System Use Entry of RRIP.
 
 Execute the following command to rebuild the data for this program:
@@ -73,6 +73,9 @@ DEFINE_TEST(test_read_format_isorr_bz2)
 	 * verify that each one is what we expect. */
 	for (i = 0; i < 10; ++i) {
 		assertEqualInt(0, archive_read_next_header(a, &ae));
+		
+		assertEqualInt(archive_entry_is_encrypted(ae), 0);
+		assertEqualIntA(a, archive_read_has_encrypted_entries(a), ARCHIVE_READ_FORMAT_ENCRYPTION_UNSUPPORTED);
 
 		if (strcmp(".", archive_entry_pathname(ae)) == 0) {
 			/* '.' root directory. */
@@ -192,7 +195,7 @@ DEFINE_TEST(test_read_format_isorr_bz2)
 	assertEqualInt(ARCHIVE_EOF, archive_read_next_header(a, &ae));
 
 	/* Verify archive format. */
-	assertEqualInt(archive_compression(a), ARCHIVE_COMPRESSION_COMPRESS);
+	assertEqualInt(archive_filter_code(a, 0), ARCHIVE_FILTER_COMPRESS);
 	assertEqualInt(archive_format(a), ARCHIVE_FORMAT_ISO9660_ROCKRIDGE);
 
 	/* Close the archive. */

@@ -56,6 +56,7 @@ struct uudecode {
 #define ST_READ_UU	1
 #define ST_UUEND	2
 #define ST_READ_BASE64	3
+#define ST_IGNORE	4
 };
 
 static int	uudecode_bidder_bid(struct archive_read_filter_bidder *,
@@ -88,6 +89,7 @@ archive_read_support_filter_uu(struct archive *_a)
 		return (ARCHIVE_FATAL);
 
 	bidder->data = NULL;
+	bidder->name = "uu";
 	bidder->bid = uudecode_bidder_bid;
 	bidder->init = uudecode_bidder_init;
 	bidder->options = NULL;
@@ -310,6 +312,7 @@ uudecode_bidder_bid(struct archive_read_filter_bidder *self,
 	avail -= len;
 
 	if (l == 6) {
+		/* "begin " */
 		if (!uuchar[*b])
 			return (0);
 		/* Get a length of decoded bytes. */
@@ -317,30 +320,14 @@ uudecode_bidder_bid(struct archive_read_filter_bidder *self,
 		if (l > 45)
 			/* Normally, maximum length is 45(character 'M'). */
 			return (0);
-		while (l && len-nl > 0) {
-			if (l > 0) {
-				if (!uuchar[*b++])
-					return (0);
-				if (!uuchar[*b++])
-					return (0);
-				len -= 2;
-				--l;
-			}
-			if (l > 0) {
-				if (!uuchar[*b++])
-					return (0);
-				--len;
-				--l;
-			}
-			if (l > 0) {
-				if (!uuchar[*b++])
-					return (0);
-				--len;
-				--l;
-			}
+		if (l > len - nl)
+			return (0); /* Line too short. */
+		while (l) {
+			if (!uuchar[*b++])
+				return (0);
+			--len;
+			--l;
 		}
-		if (len-nl < 0)
-			return (0);
 		if (len-nl == 1 &&
 		    (uuchar[*b] ||		 /* Check sum. */
 		     (*b >= 'a' && *b <= 'z'))) {/* Padding data(MINIX). */
@@ -350,8 +337,8 @@ uudecode_bidder_bid(struct archive_read_filter_bidder *self,
 		b += nl;
 		if (avail && uuchar[*b])
 			return (firstline+30);
-	}
-	if (l == 13) {
+	} else if (l == 13) {
+		/* "begin-base64 " */
 		while (len-nl > 0) {
 			if (!base64[*b++])
 				return (0);
@@ -377,7 +364,7 @@ uudecode_bidder_init(struct archive_read_filter *self)
 	void *out_buff;
 	void *in_buff;
 
-	self->code = ARCHIVE_COMPRESSION_UU;
+	self->code = ARCHIVE_FILTER_UU;
 	self->name = "uu";
 	self->read = uudecode_filter_read;
 	self->skip = NULL; /* not supported */
@@ -470,6 +457,10 @@ read_more:
 	total = 0;
 	out = uudecode->out_buff;
 	ravail = avail_in;
+	if (uudecode->state == ST_IGNORE) {
+		used = avail_in;
+		goto finish;
+	}
 	if (uudecode->in_cnt) {
 		/*
 		 * If there is remaining data which is saved by
@@ -485,19 +476,32 @@ read_more:
 		uudecode->in_cnt = 0;
 	}
 	for (;used < avail_in; d += llen, used += llen) {
-		int l, body;
+		int64_t l, body;
 
 		b = d;
 		len = get_line(b, avail_in - used, &nl);
 		if (len < 0) {
 			/* Non-ascii character is found. */
+			if (uudecode->state == ST_FIND_HEAD &&
+			    (uudecode->total > 0 || total > 0)) {
+				uudecode->state = ST_IGNORE;
+				used = avail_in;
+				goto finish;
+			}
 			archive_set_error(&self->archive->archive,
 			    ARCHIVE_ERRNO_MISC,
 			    "Insufficient compressed data");
 			return (ARCHIVE_FATAL);
 		}
 		llen = len;
-		if (nl == 0) {
+		if ((nl == 0) && (uudecode->state != ST_UUEND)) {
+			if (total == 0 && ravail <= 0) {
+				/* There is nothing more to read, fail */
+				archive_set_error(&self->archive->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Missing format data");
+				return (ARCHIVE_FATAL);
+			}
 			/*
 			 * Save remaining data which does not contain
 			 * NL('\n','\r').
@@ -507,7 +511,7 @@ read_more:
 				return (ARCHIVE_FATAL);
 			if (uudecode->in_buff != b)
 				memmove(uudecode->in_buff, b, len);
-			uudecode->in_cnt = len;
+			uudecode->in_cnt = (int)len;
 			if (total == 0) {
 				/* Do not return 0; it means end-of-file.
 				 * We should try to read bytes more. */
@@ -515,6 +519,7 @@ read_more:
 				    self->upstream, ravail);
 				goto read_more;
 			}
+			used += len;
 			break;
 		}
 		switch (uudecode->state) {
@@ -545,7 +550,7 @@ read_more:
 			break;
 		case ST_READ_UU:
 			if (total + len * 2 > OUT_BUFF_SIZE)
-				break;
+				goto finish;
 			body = len - nl;
 			if (!uuchar[*b] || body <= 0) {
 				archive_set_error(&self->archive->archive,
@@ -553,7 +558,7 @@ read_more:
 				    "Insufficient compressed data");
 				return (ARCHIVE_FATAL);
 			}
-			/* Get length of undecoded bytes of curent line. */
+			/* Get length of undecoded bytes of current line. */
 			l = UUDECODE(*b++);
 			body--;
 			if (l > body) {
@@ -611,7 +616,7 @@ read_more:
 			break;
 		case ST_READ_BASE64:
 			if (total + len * 2 > OUT_BUFF_SIZE)
-				break;
+				goto finish;
 			l = len - nl;
 			if (l >= 3 && b[0] == '=' && b[1] == '=' &&
 			    b[2] == '=') {
@@ -657,8 +662,10 @@ read_more:
 			break;
 		}
 	}
-
-	__archive_read_filter_consume(self->upstream, ravail);
+finish:
+	if (ravail < avail_in)
+		used -= avail_in - ravail;
+	__archive_read_filter_consume(self->upstream, used);
 
 	*buff = uudecode->out_buff;
 	uudecode->total += total;

@@ -41,7 +41,7 @@ __FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_format_by_name.c 20116
 #include "archive_private.h"
 
 /* A table that maps names to functions. */
-static
+static const
 struct { const char *name; int (*setter)(struct archive *); } names[] =
 {
 	{ "7zip",	archive_write_set_format_7zip },
@@ -56,15 +56,21 @@ struct { const char *name; int (*setter)(struct archive *); } names[] =
 	{ "iso",	archive_write_set_format_iso9660 },
 	{ "iso9660",	archive_write_set_format_iso9660 },
 	{ "mtree",	archive_write_set_format_mtree },
+	{ "mtree-classic",	archive_write_set_format_mtree_classic },
 	{ "newc",	archive_write_set_format_cpio_newc },
 	{ "odc",	archive_write_set_format_cpio },
+	{ "oldtar",	archive_write_set_format_v7tar },
 	{ "pax",	archive_write_set_format_pax },
 	{ "paxr",	archive_write_set_format_pax_restricted },
 	{ "posix",	archive_write_set_format_pax },
+	{ "raw",	archive_write_set_format_raw },
 	{ "rpax",	archive_write_set_format_pax_restricted },
 	{ "shar",	archive_write_set_format_shar },
 	{ "shardump",	archive_write_set_format_shar_dump },
 	{ "ustar",	archive_write_set_format_ustar },
+	{ "v7tar",	archive_write_set_format_v7tar },
+	{ "v7",		archive_write_set_format_v7tar },
+	{ "warc",	archive_write_set_format_warc },
 	{ "xar",	archive_write_set_format_xar },
 	{ "zip",	archive_write_set_format_zip },
 	{ NULL,		NULL }

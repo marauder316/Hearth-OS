@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2010-2011 Michihiro NAKAJIMA
+ * Copyright (c) 2010-2012 Michihiro NAKAJIMA
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,12 +46,8 @@ __FBSDID("$FreeBSD$");
 #include <zlib.h>
 #endif
 
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
-
 #include "archive.h"
-#include "archive_crypto_private.h"
+#include "archive_digest_private.h"
 #include "archive_endian.h"
 #include "archive_entry.h"
 #include "archive_entry_locale.h"
@@ -67,7 +63,7 @@ __FBSDID("$FreeBSD$");
  * - When writing an XML element <link type="<file-type>">, <file-type>
  *   which is a file type a symbolic link is referencing is always marked
  *   as "broken". Xar utility uses stat(2) to get the file type, but, in
- *   libarcive format writer, we should not use it; if it is needed, we
+ *   libarchive format writer, we should not use it; if it is needed, we
  *   should get about it at archive_read_disk.c.
  * - It is possible to appear both <flags> and <ext2> elements.
  *   Xar utility generates <flags> on BSD platform and <ext2> on Linux
@@ -101,6 +97,8 @@ archive_write_set_format_xar(struct archive *_a)
 
 /*#define DEBUG_PRINT_TOC		1 */
 
+#define BAD_CAST_CONST (const xmlChar *)
+
 #define HEADER_MAGIC	0x78617221
 #define HEADER_SIZE	28
 #define HEADER_VERSION	1
@@ -116,7 +114,7 @@ enum sumalg {
 #define MAX_SUM_SIZE	20
 #define MD5_NAME	"md5"
 #define SHA1_NAME	"sha1"
- 
+
 enum enctype {
 	NONE,
 	GZIP,
@@ -194,7 +192,7 @@ struct file {
 	struct file		*parent;	/* parent directory entry */
 	/*
 	 * To manage sub directory files.
-	 * We use 'chnext' a menber of struct file to chain.
+	 * We use 'chnext' (a member of struct file) to chain.
 	 */
 	struct {
 		struct file	*first;
@@ -244,6 +242,7 @@ struct xar {
 	enum sumalg		 opt_sumalg;
 	enum enctype		 opt_compression;
 	int			 opt_compression_level;
+	uint32_t		 opt_threads;
 
 	struct chksumwork	 a_sumwrk;	/* archived checksum.	*/
 	struct chksumwork	 e_sumwrk;	/* extracted checksum.	*/
@@ -259,7 +258,7 @@ struct xar {
 	/*
 	 * The list of all file entries is used to manage struct file
 	 * objects.
-	 * We use 'next' a menber of struct file to chain.
+	 * We use 'next' (a member of struct file) to chain.
 	 */
 	struct {
 		struct file	*first;
@@ -267,7 +266,7 @@ struct xar {
 	}			 file_list;
 	/*
 	 * The list of hard-linked file entries.
-	 * We use 'hlnext' a menber of struct file to chain.
+	 * We use 'hlnext' (a member of struct file) to chain.
 	 */
 	struct archive_rb_tree	 hardlink_rbtree;
 };
@@ -319,7 +318,7 @@ static int	compression_end_bzip2(struct archive *, struct la_zstream *);
 static int	compression_init_encoder_lzma(struct archive *,
 		    struct la_zstream *, int);
 static int	compression_init_encoder_xz(struct archive *,
-		    struct la_zstream *, int);
+		    struct la_zstream *, int, int);
 #if defined(HAVE_LZMA_H)
 static int	compression_code_lzma(struct archive *,
 		    struct la_zstream *, enum la_zaction);
@@ -382,9 +381,10 @@ archive_write_set_format_xar(struct archive *_a)
 	/* Set default checksum type. */
 	xar->opt_toc_sumalg = CKSUM_SHA1;
 	xar->opt_sumalg = CKSUM_SHA1;
-	/* Set default compression type and level. */
+	/* Set default compression type, level, and number of threads. */
 	xar->opt_compression = GZIP;
 	xar->opt_compression_level = 6;
+	xar->opt_threads = 1;
 
 	a->format_data = xar;
 
@@ -418,7 +418,7 @@ xar_options(struct archive_write *a, const char *key, const char *value)
 		else {
 			archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn checksum name: `%s'",
+			    "Unknown checksum name: `%s'",
 			    value);
 			return (ARCHIVE_FAILED);
 		}
@@ -452,7 +452,7 @@ xar_options(struct archive_write *a, const char *key, const char *value)
 		else {
 			archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn compression name: `%s'",
+			    "Unknown compression name: `%s'",
 			    value);
 			return (ARCHIVE_FAILED);
 		}
@@ -472,7 +472,7 @@ xar_options(struct archive_write *a, const char *key, const char *value)
 		    value[1] != '\0') {
 			archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "Illeagal value `%s'",
+			    "Illegal value `%s'",
 			    value);
 			return (ARCHIVE_FAILED);
 		}
@@ -489,14 +489,37 @@ xar_options(struct archive_write *a, const char *key, const char *value)
 		else {
 			archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "Unkonwn checksum name: `%s'",
+			    "Unknown checksum name: `%s'",
 			    value);
 			return (ARCHIVE_FAILED);
 		}
 		return (ARCHIVE_OK);
 	}
+	if (strcmp(key, "threads") == 0) {
+		if (value == NULL)
+			return (ARCHIVE_FAILED);
+		xar->opt_threads = (int)strtoul(value, NULL, 10);
+		if (xar->opt_threads == 0 && errno != 0) {
+			xar->opt_threads = 1;
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Illegal value `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		if (xar->opt_threads == 0) {
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+			xar->opt_threads = lzma_cputhreads();
+#else
+			xar->opt_threads = 1;
+#endif
+		}
+	}
 
-	return (ARCHIVE_FAILED);
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }
 
 static int
@@ -625,11 +648,11 @@ static int
 write_to_temp(struct archive_write *a, const void *buff, size_t s)
 {
 	struct xar *xar;
-	unsigned char *p;
+	const unsigned char *p;
 	ssize_t ws;
 
 	xar = (struct xar *)a->format_data;
-	p = (unsigned char *)buff;
+	p = (const unsigned char *)buff;
 	while (s) {
 		ws = write(xar->temp_fd, p, s);
 		if (ws < 0) {
@@ -655,7 +678,7 @@ xar_write_data(struct archive_write *a, const void *buff, size_t s)
 	xar = (struct xar *)a->format_data;
 
 	if (s > xar->bytes_remaining)
-		s = xar->bytes_remaining;
+		s = (size_t)xar->bytes_remaining;
 	if (s == 0 || xar->cur_file == NULL)
 		return (0);
 	if (xar->cur_file->data.compression == NONE) {
@@ -680,7 +703,7 @@ xar_write_data(struct archive_write *a, const void *buff, size_t s)
 	}
 #if !defined(_WIN32) || defined(__CYGWIN__)
 	if (xar->bytes_remaining ==
-	    archive_entry_size(xar->cur_file->entry)) {
+	    (uint64_t)archive_entry_size(xar->cur_file->entry)) {
 		/*
 		 * Get the path of a shell script if so.
 		 */
@@ -736,7 +759,7 @@ xar_finish_entry(struct archive_write *a)
 		return (ARCHIVE_OK);
 
 	while (xar->bytes_remaining > 0) {
-		s = xar->bytes_remaining;
+		s = (size_t)xar->bytes_remaining;
 		if (s > a->null_length)
 			s = a->null_length;
 		w = xar_write_data(a, a->nulls, s);
@@ -760,7 +783,7 @@ xmlwrite_string_attr(struct archive_write *a, xmlTextWriterPtr writer,
 {
 	int r;
 
-	r = xmlTextWriterStartElement(writer, BAD_CAST(key));
+	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
 	if (r < 0) {
 		archive_set_error(&a->archive,
 		    ARCHIVE_ERRNO_MISC,
@@ -769,7 +792,7 @@ xmlwrite_string_attr(struct archive_write *a, xmlTextWriterPtr writer,
 	}
 	if (attrkey != NULL && attrvalue != NULL) {
 		r = xmlTextWriterWriteAttribute(writer,
-		    BAD_CAST(attrkey), BAD_CAST(attrvalue));
+		    BAD_CAST_CONST(attrkey), BAD_CAST_CONST(attrvalue));
 		if (r < 0) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_MISC,
@@ -778,7 +801,7 @@ xmlwrite_string_attr(struct archive_write *a, xmlTextWriterPtr writer,
 		}
 	}
 	if (value != NULL) {
-		r = xmlTextWriterWriteString(writer, BAD_CAST(value));
+		r = xmlTextWriterWriteString(writer, BAD_CAST_CONST(value));
 		if (r < 0) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_MISC,
@@ -804,8 +827,8 @@ xmlwrite_string(struct archive_write *a, xmlTextWriterPtr writer,
 
 	if (value == NULL)
 		return (ARCHIVE_OK);
-	
-	r = xmlTextWriterStartElement(writer, BAD_CAST(key));
+
+	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
 	if (r < 0) {
 		archive_set_error(&a->archive,
 		    ARCHIVE_ERRNO_MISC,
@@ -813,7 +836,7 @@ xmlwrite_string(struct archive_write *a, xmlTextWriterPtr writer,
 		return (ARCHIVE_FATAL);
 	}
 	if (value != NULL) {
-		r = xmlTextWriterWriteString(writer, BAD_CAST(value));
+		r = xmlTextWriterWriteString(writer, BAD_CAST_CONST(value));
 		if (r < 0) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_MISC,
@@ -1066,7 +1089,7 @@ make_fflags_entry(struct archive_write *a, xmlTextWriterPtr writer,
 	} while (p != NULL);
 
 	if (n > 0) {
-		r = xmlTextWriterStartElement(writer, BAD_CAST(element));
+		r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(element));
 		if (r < 0) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_MISC,
@@ -1204,7 +1227,7 @@ make_file_entry(struct archive_write *a, xmlTextWriterPtr writer,
 	case AE_IFLNK:
 		/*
 		 * xar utility has checked a file type, which
-		 * a symblic-link file has referenced.
+		 * a symbolic-link file has referenced.
 		 * For example:
 		 *   <link type="directory">../ref/</link>
 		 *   The symlink target file is "../ref/" and its
@@ -1214,8 +1237,8 @@ make_file_entry(struct archive_write *a, xmlTextWriterPtr writer,
 		 *   The symlink target file is "../f" and its
 		 *   file type is a regular file.
 		 *
-		 * But our implemention cannot do it, and then we
-		 * always record that a attribute "type" is "borken",
+		 * But our implementation cannot do it, and then we
+		 * always record that a attribute "type" is "broken",
 		 * for example:
 		 *   <link type="broken">foo/bar</link>
 		 *   It means "foo/bar" is not reachable.
@@ -1521,7 +1544,7 @@ make_toc(struct archive_write *a)
 	}
 
 	/*
-	 * Start recoding TOC
+	 * Start recording TOC
 	 */
 	r = xmlTextWriterStartElement(writer, BAD_CAST("xar"));
 	if (r < 0) {
@@ -1561,7 +1584,7 @@ make_toc(struct archive_write *a)
 			goto exit_toc;
 		}
 		r = xmlTextWriterWriteAttribute(writer, BAD_CAST("style"),
-		    BAD_CAST(getalgname(xar->opt_toc_sumalg)));
+		    BAD_CAST_CONST(getalgname(xar->opt_toc_sumalg)));
 		if (r < 0) {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_MISC,
@@ -1854,6 +1877,11 @@ xar_free(struct archive_write *a)
 	struct xar *xar;
 
 	xar = (struct xar *)a->format_data;
+
+	/* Close the temporary file. */
+	if (xar->temp_fd >= 0)
+		close(xar->temp_fd);
+
 	archive_string_free(&(xar->cur_dirstr));
 	archive_string_free(&(xar->tstr));
 	archive_string_free(&(xar->vstr));
@@ -1869,16 +1897,16 @@ static int
 file_cmp_node(const struct archive_rb_node *n1,
     const struct archive_rb_node *n2)
 {
-	struct file *f1 = (struct file *)n1;
-	struct file *f2 = (struct file *)n2;
+	const struct file *f1 = (const struct file *)n1;
+	const struct file *f2 = (const struct file *)n2;
 
 	return (strcmp(f1->basename.s, f2->basename.s));
 }
-        
+
 static int
 file_cmp_key(const struct archive_rb_node *n, const void *key)
 {
-	struct file *f = (struct file *)n;
+	const struct file *f = (const struct file *)n;
 
 	return (strcmp(f->basename.s, (const char *)key));
 }
@@ -1933,6 +1961,7 @@ file_free(struct file *file)
 	archive_string_free(&(file->basename));
 	archive_string_free(&(file->symlink));
 	archive_string_free(&(file->script));
+	archive_entry_free(file->entry);
 	free(file);
 }
 
@@ -1941,6 +1970,8 @@ file_create_virtual_dir(struct archive_write *a, struct xar *xar,
     const char *pathname)
 {
 	struct file *file;
+
+	(void)xar; /* UNUSED */
 
 	file = file_new(a, NULL);
 	if (file == NULL)
@@ -2151,7 +2182,7 @@ file_gen_utility_names(struct archive_write *a, struct file *file)
 		file->parentdir.length = len;
 		archive_string_copy(&(file->basename), &(file->parentdir));
 		archive_string_empty(&(file->parentdir));
-		file->parentdir.s = '\0';
+		*file->parentdir.s = '\0';
 		return (r);
 	}
 
@@ -2454,7 +2485,7 @@ file_connect_hardlink_files(struct xar *xar)
 		archive_entry_set_nlink(target->entry, hl->nlink);
 		if (hl->nlink > 1)
 			/* It means this file is a hardlink
-			 * targe itself. */
+			 * target itself. */
 			target->hardlink_target = target;
 		for (nf = target->hlnext;
 		    nf != NULL; nf = nf->hlnext) {
@@ -2468,8 +2499,8 @@ static int
 file_hd_cmp_node(const struct archive_rb_node *n1,
     const struct archive_rb_node *n2)
 {
-	struct hardlink *h1 = (struct hardlink *)n1;
-	struct hardlink *h2 = (struct hardlink *)n2;
+	const struct hardlink *h1 = (const struct hardlink *)n1;
+	const struct hardlink *h2 = (const struct hardlink *)n2;
 
 	return (strcmp(archive_entry_pathname(h1->file_list.first->entry),
 		       archive_entry_pathname(h2->file_list.first->entry)));
@@ -2478,7 +2509,7 @@ file_hd_cmp_node(const struct archive_rb_node *n1,
 static int
 file_hd_cmp_key(const struct archive_rb_node *n, const void *key)
 {
-	struct hardlink *h = (struct hardlink *)n;
+	const struct hardlink *h = (const struct hardlink *)n;
 
 	return (strcmp(archive_entry_pathname(h->file_list.first->entry),
 		       (const char *)key));
@@ -2491,7 +2522,7 @@ file_init_hardlinks(struct xar *xar)
 	static const struct archive_rb_tree_ops rb_ops = {
 		file_hd_cmp_node, file_hd_cmp_key,
 	};
- 
+
 	__archive_rb_tree_init(&(xar->hardlink_rbtree), &rb_ops);
 }
 
@@ -2593,10 +2624,10 @@ compression_init_encoder_gzip(struct archive *a,
 	 * a non-const pointer. */
 	strm->next_in = (Bytef *)(uintptr_t)(const void *)lastrm->next_in;
 	strm->avail_in = lastrm->avail_in;
-	strm->total_in = lastrm->total_in;
+	strm->total_in = (uLong)lastrm->total_in;
 	strm->next_out = lastrm->next_out;
 	strm->avail_out = lastrm->avail_out;
-	strm->total_out = lastrm->total_out;
+	strm->total_out = (uLong)lastrm->total_out;
 	if (deflateInit2(strm, level, Z_DEFLATED,
 	    (withheader)?15:-15,
 	    8, Z_DEFAULT_STRATEGY) != Z_OK) {
@@ -2626,10 +2657,10 @@ compression_code_gzip(struct archive *a,
 	 * a non-const pointer. */
 	strm->next_in = (Bytef *)(uintptr_t)(const void *)lastrm->next_in;
 	strm->avail_in = lastrm->avail_in;
-	strm->total_in = lastrm->total_in;
+	strm->total_in = (uLong)lastrm->total_in;
 	strm->next_out = lastrm->next_out;
 	strm->avail_out = lastrm->avail_out;
-	strm->total_out = lastrm->total_out;
+	strm->total_out = (uLong)lastrm->total_out;
 	r = deflate(strm,
 	    (action == ARCHIVE_Z_FINISH)? Z_FINISH: Z_NO_FLUSH);
 	lastrm->next_in = strm->next_in;
@@ -2845,13 +2876,18 @@ compression_init_encoder_lzma(struct archive *a,
 
 static int
 compression_init_encoder_xz(struct archive *a,
-    struct la_zstream *lastrm, int level)
+    struct la_zstream *lastrm, int level, int threads)
 {
 	static const lzma_stream lzma_init_data = LZMA_STREAM_INIT;
 	lzma_stream *strm;
 	lzma_filter *lzmafilters;
 	lzma_options_lzma lzma_opt;
 	int r;
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+	lzma_mt mt_options;
+#endif
+
+	(void)threads; /* UNUSED (if multi-threaded LZMA library not avail) */
 
 	if (lastrm->valid)
 		compression_end(a, lastrm);
@@ -2865,6 +2901,7 @@ compression_init_encoder_xz(struct archive *a,
 	if (level > 6)
 		level = 6;
 	if (lzma_lzma_preset(&lzma_opt, level)) {
+		free(strm);
 		lastrm->real_stream = NULL;
 		archive_set_error(a, ENOMEM,
 		    "Internal error initializing compression library");
@@ -2875,7 +2912,17 @@ compression_init_encoder_xz(struct archive *a,
 	lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
 
 	*strm = lzma_init_data;
-	r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+	if (threads > 1) {
+		memset(&mt_options, 0, sizeof(mt_options));
+		mt_options.threads = threads;
+		mt_options.timeout = 300;
+		mt_options.filters = lzmafilters;
+		mt_options.check = LZMA_CHECK_CRC64;
+		r = lzma_stream_encoder_mt(strm, &mt_options);
+	} else
+#endif
+		r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
 	switch (r) {
 	case LZMA_OK:
 		lastrm->real_stream = strm;
@@ -2975,10 +3022,11 @@ compression_init_encoder_lzma(struct archive *a,
 }
 static int
 compression_init_encoder_xz(struct archive *a,
-    struct la_zstream *lastrm, int level)
+    struct la_zstream *lastrm, int level, int threads)
 {
 
 	(void) level; /* UNUSED */
+	(void) threads; /* UNUSED */
 	if (lastrm->valid)
 		compression_end(a, lastrm);
 	return (compression_unsupported_encoder(a, lastrm, "xz"));
@@ -3011,7 +3059,7 @@ xar_compression_init_encoder(struct archive_write *a)
 	case XZ:
 		r = compression_init_encoder_xz(
 		    &(a->archive), &(xar->stream),
-		    xar->opt_compression_level);
+		    xar->opt_compression_level, xar->opt_threads);
 		break;
 	default:
 		r = ARCHIVE_OK;
@@ -3086,8 +3134,10 @@ save_xattrs(struct archive_write *a, struct file *file)
 			checksum_update(&(xar->a_sumwrk), value, size);
 			checksum_final(&(xar->a_sumwrk), &(heap->a_sum));
 			if (write_to_temp(a, value, size)
-			    != ARCHIVE_OK)
+			    != ARCHIVE_OK) {
+				free(heap);
 				return (ARCHIVE_FATAL);
+			}
 			heap->length = size;
 			/* Add heap to the tail of file->xattr. */
 			heap->next = NULL;
@@ -3172,4 +3222,3 @@ getalgname(enum sumalg sumalg)
 }
 
 #endif /* Support xar format */
-

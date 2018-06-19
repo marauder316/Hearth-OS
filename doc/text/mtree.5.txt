@@ -1,4 +1,3 @@
-
 MTREE(5)		    BSD File Formats Manual		      MTREE(5)
 
 NAME
@@ -14,17 +13,12 @@ DESCRIPTION
      about a single filesystem object.	Leading whitespace is always ignored.
 
      When encoding file or pathnames, any backslash character or character
-     outside of the 95 printable ASCII characters must be encoded as a a back‐
+     outside of the 95 printable ASCII characters must be encoded as a back‐
      slash followed by three octal digits.  When reading mtree files, any
      appearance of a backslash followed by three octal digits should be con‐
      verted into the corresponding character.
 
      Each line is interpreted independently as one of the following types:
-
-     Signature	 The first line of any mtree file must begin with “#mtree”.
-		 If a file contains any full path entries, the first line
-		 should begin with “#mtree v2.0”, otherwise, the first line
-		 should begin with “#mtree v1.0”.
 
      Blank	 Blank lines are ignored.
 
@@ -33,16 +27,16 @@ DESCRIPTION
      Special	 Lines beginning with / are special commands that influence
 		 the interpretation of later lines.
 
-     Relative	 If the first whitespace‐delimited word has no / characters,
+     Relative	 If the first whitespace-delimited word has no / characters,
 		 it is the name of a file in the current directory.  Any rela‐
 		 tive entry that describes a directory changes the current
 		 directory.
 
-     dot‐dot	 As a special case, a relative entry with the filename ..
+     dot-dot	 As a special case, a relative entry with the filename ..
 		 changes the current directory to the parent directory.
-		 Options on dot‐dot entries are always ignored.
+		 Options on dot-dot entries are always ignored.
 
-     Full	 If the first whitespace‐delimited word has a / character
+     Full	 If the first whitespace-delimited word has a / character
 		 after the first character, it is the pathname of a file rela‐
 		 tive to the starting directory.  There can be multiple full
 		 entries describing the same file.
@@ -56,7 +50,7 @@ DESCRIPTION
      Two special commands are currently defined:
 
      /set	 This command defines default values for one or more keywords.
-		 It is followed on the same line by one or more whitespace‐
+		 It is followed on the same line by one or more whitespace-
 		 separated keyword definitions.  These definitions apply to
 		 all following files that do not specify a value for that key‐
 		 word.
@@ -67,8 +61,8 @@ DESCRIPTION
 
    Keywords
      After the filename, a full or relative entry consists of zero or more
-     whitespace‐separated keyword definitions.	Each such definition consists
-     of a key from the following list immediately followed by an ’=’ sign and
+     whitespace-separated keyword definitions.	Each such definition consists
+     of a key from the following list immediately followed by an '=' sign and
      a value.  Software programs reading mtree files should warn about unrec‐
      ognized keywords.
 
@@ -76,6 +70,23 @@ DESCRIPTION
 
      cksum	 The checksum of the file using the default algorithm speci‐
 		 fied by the cksum(1) utility.
+
+     device	 The device number for block or char file types.  The value
+		 must be one of the following forms:
+
+		 format,major,minor[,subunit]
+		       A device with major, minor and optional subunit fields.
+		       Their meaning is specified by the operating's system
+		       format.	See below for valid formats.
+
+		 number
+		       Opaque number (as stored on the file system).
+
+		 The following values for format are recognized: native,
+		 386bsd, 4bsd, bsdos, freebsd, hpux, isc, linux, netbsd, osf1,
+		 sco, solaris, sunos, svr3, svr4, and ultrix.
+
+		 See mknod(8) for more details.
 
      contents	 The full pathname of a file that holds the contents of this
 		 file.
@@ -90,19 +101,28 @@ DESCRIPTION
 
      ignore	 Ignore any file hierarchy below this file.
 
+     inode	 The inode number.
+
      link	 The target of the symbolic link when type=link.
 
      md5	 The MD5 message digest of the file.
 
      md5digest	 A synonym for md5.
 
-     mode	 The current file’s permissions as a numeric (octal) or sym‐
+     mode	 The current file's permissions as a numeric (octal) or sym‐
 		 bolic value.
 
      nlink	 The number of hard links the file is expected to have.
 
      nochange	 Make sure this file or directory exists but otherwise ignore
 		 all attributes.
+
+     optional	 The file is optional; do not complain about the file if it is
+		 not in the file hierarchy.
+
+     resdevice	 The “resident” device number of the file, e.g. the ID of the
+		 device that contains the file.  Its format is the same as the
+		 one for device.
 
      ripemd160digest
 		 The RIPEMD160 message digest of the file.
@@ -112,14 +132,24 @@ DESCRIPTION
      rmd160digest
 		 A synonym for ripemd160digest.
 
-     sha1	 The FIPS 160‐1 (“SHA‐1”) message digest of the file.
+     sha1	 The FIPS 160-1 (“SHA-1”) message digest of the file.
 
      sha1digest  A synonym for sha1.
 
-     sha256	 The FIPS 180‐2 (“SHA‐256”) message digest of the file.
+     sha256	 The FIPS 180-2 (“SHA-256”) message digest of the file.
 
      sha256digest
 		 A synonym for sha256.
+
+     sha384	 The FIPS 180-2 (“SHA-384”) message digest of the file.
+
+     sha384digest
+		 A synonym for sha384.
+
+     sha512	 The FIPS 180-2 (“SHA-512”) message digest of the file.
+
+     sha512digest
+		 A synonym for sha512.
 
      size	 The size, in bytes, of the file.
 
@@ -143,17 +173,13 @@ SEE ALSO
      cksum(1), find(1), mtree(8)
 
 BUGS
-     The FreeBSD implementation of mtree does not currently support the mtree
-     2.0 format.  The requirement for a “#mtree” signature line is new and not
-     yet widely implemented.
-
 HISTORY
-     The mtree utility appeared in 4.3BSD−Reno.  The MD5 digest capability was
+     The mtree utility appeared in 4.3BSD-Reno.  The MD5 digest capability was
      added in FreeBSD 2.1, in response to the widespread use of programs which
-     can spoof cksum(1).  The SHA‐1 and RIPEMD160 digests were added in
+     can spoof cksum(1).  The SHA-1 and RIPEMD160 digests were added in
      FreeBSD 4.0, as new attacks have demonstrated weaknesses in MD5.  The
-     SHA‐256 digest was added in FreeBSD 6.0.  Support for file flags was
+     SHA-256 digest was added in FreeBSD 6.0.  Support for file flags was
      added in FreeBSD 4.0, and mostly comes from NetBSD.  The “full” entry
      format was added by NetBSD.
 
-BSD				August 20, 2007 			   BSD
+BSD			       September 4, 2013			   BSD
