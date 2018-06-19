@@ -1,5 +1,6 @@
 * text=auto !eol
 /CONTRIBUTING -text
+/LICENSE -text
 /Makefile -text
 /NEWS -text
 /README -text
@@ -10,6 +11,8 @@
 /australasia -text
 /backward -text
 /backzone -text
+/calendars -text
+/checklinks.awk -text
 /checktab.awk -text
 /etcetera -text
 /europe -text
@@ -20,12 +23,13 @@
 /leapseconds.awk -text
 /northamerica -text
 /pacificnew -text
-/solar87 -text
-/solar88 -text
-/solar89 -text
 /southamerica -text
 /systemv -text
+/theory.html -text
+/version -text
 /yearistype.sh -text
+/ziguard.awk -text
+/zishrink.awk -text
 /zone.tab -text
 /zone1970.tab -text
 /zoneinfo2tdf.pl -text
